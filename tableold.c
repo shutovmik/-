@@ -41,37 +41,98 @@ void filewrite(parent *, child *, FILE *, FILE *);
 void begin(parent *p, child *c, FILE *a, FILE *b)
 {
     printf("Даны Parent table и Child table - перемешанные таблицы, использующие перемешивание сложением с шагом k = %d\nДлина Parent table: %d\nДлина Child table: %d\n\n", k, sizep, sizec);
+    filework(p, c, a, b);
     gettables(p, c, a, b);
     printtables(p, c, a, b);
     printf("\nЧтобы добавить элемент в Parent table, введите 1\nЧтобы добавить элемент в Child table, введите 2\nЧтобы удалить элемент из Parent table, введите 3\nЧтобы удалить элемент из Child table, введите 4\nЧтобы вывести таблицы на экран, введите 5\nЧтобы закончить работу с таблицами, введите 0\n");
 }
 
+filework(parent *p, child *c, FILE *a, FILE *b)
+{
+    fwrite(&sizep, sizeof(int), 1, a);
+    fwrite(&sizec, sizeof(int), 1, b);
+    fwrite(a, sizeof(parent), sizep, a);
+    fwrite(b, sizeof(child), sizec, b);
+}
+
 void gettables(parent *p, child *c, FILE *a, FILE *b)
 {
+    int key, i = 0, j = 0, pkey, m;
+    for (i; i < sizep; i++)
+        p[i].busy = 0;
+    for (int i = 0; i < (sizep * 8)/10; i++)
+    {
+        key = rand() % 100;
+        while(1)
+        {
+            for (j = 0; j < sizep; j++)
+                if (p[j].busy)
+                    if (p[j].key == key)
+                    {
+                        key = rand() % 100;
+                        break;
+                    }
+            if (j == sizep)
+                break;
+        }
+        j = 0;
+        while (p[(key + j * k) % sizep].busy == 1)
+            j++;
+        p[(key + j * k) % sizep].busy = 1;
+        p[(key + j * k) % sizep].key = key;
+        p[(key + j * k) % sizep].len = 5;
+        fseek(a, 0, SEEK_END);
+        p[(key + j * k) % sizep].offset = ftell(a);
+        fwrite("info", sizeof(char), 5, a);
+    }
+    for (i = 0; i < sizec; i++)
+        c[i].busy = 0;
+    j = 0;
+    for (int i = 0; i < (sizec * 5)/10; i++)
+    {
+        while (p[j].busy == 0)
+            j++;
+        pkey = p[j].key;
+        j++;
+        key = rand() % 100;
+        while(1)
+        {
+            for (m = 0; m < sizec; m++)
+                if (c[m].busy)
+                    if (c[m].key == key)
+                    {
+                        key = rand() % 100;
+                        break;
+                    }
+            if (m == sizec)
+                break;
+        }
+        m = 0;
+        while (c[(key + m * k) % sizec].busy)
+            m++;
+        c[(key + k * m) % sizec].busy = 1;
+        c[(key + k * m) % sizec].key = key;
+        c[(key + k * m) % sizec].pkey = pkey;
+        c[(key + k * m) % sizec].len = 5;
+        fseek(b, 0, SEEK_END);
+        c[(key + k * m) % sizec].offset = ftell(b);
+        fwrite("info", sizeof(char), 5, b);
+    }
     for (int i = 0; i < sizep; i++)
-    {
-        fseek(a, (1 + i * 4) * sizeof(int), SEEK_SET);
-        fread(&p[i].busy, sizeof(int), 1, a);
-        fseek(a, (2 + i * 4) * sizeof(int), SEEK_SET);
-        fread(&p[i].key, sizeof(int), 1, a);
-        fseek(a, (3 + i * 4) * sizeof(int), SEEK_SET);
-        fread(&p[i].offset, sizeof(int), 1, a);
-        fseek(a, (4 + i * 4) * sizeof(int), SEEK_SET);
-        fread(&p[i].len, sizeof(int), 1, a);
-    }
+        if (p[i].busy == 0)
+        {
+            p[i].key = 0;
+            p[i].offset = 0;
+            p[i].len = 0;
+        }
     for (int i = 0; i < sizec; i++)
-    {
-        fseek(b, (1 + i * 5) * sizeof(int), SEEK_SET);
-        fread(&c[i].busy, sizeof(int), 1, b);
-        fseek(b, (2 + i * 5) * sizeof(int), SEEK_SET);
-        fread(&c[i].key, sizeof(int), 1, b);
-        fseek(b, (3 + i * 5) * sizeof(int), SEEK_SET);
-        fread(&c[i].pkey, sizeof(int), 1, b);
-        fseek(b, (4 + i * 5) * sizeof(int), SEEK_SET);
-        fread(&c[i].offset, sizeof(int), 1, b);
-        fseek(b, (5 + i * 5) * sizeof(int), SEEK_SET);
-        fread(&c[i].len, sizeof(int), 1, b);
-    }
+        if (c[i].busy == 0)
+        {
+            c[i].key = 0;
+            c[i].pkey = 0;
+            c[i].offset = 0;
+            c[i].len = 0;
+        }
 }
 
 int enter()
@@ -171,7 +232,6 @@ void inparent(parent *p, FILE *a)
         else
         {
             p[(n.key + x * k) % sizep] = n;
-            fseek(a, 0, SEEK_END);
             fwrite(info, sizeof(char), p[(n.key + x * k) % sizep].len + 1, a);
             free(info);
             printf("Элемент добавлен в Parent table\n\n");
@@ -221,7 +281,6 @@ void inchild(parent *p, child *c, FILE *b)
         else
         {
             c[(n.key + k * i) % sizec] = n;
-            fseek(b, 0, SEEK_END);
             fwrite(info, sizeof(char), c[(n.key + k * i) % sizec].len + 1, b);
             free(info);
             printf("Элемент добавлен в Child table\n\n");
@@ -341,8 +400,8 @@ int main()
     parent a[sizep];
     child b[sizec];
     FILE *f, *c;
-    f = fopen("kp.c", "r+");
-    c = fopen("kc.c", "r+");
+    f = fopen("kp.c", "w+");
+    c = fopen("kc.c", "w+");
     begin(a, b, f, c);
     int zapr = enter();
     while (zapr)
